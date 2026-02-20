@@ -31,14 +31,18 @@ jobs:
 
       - name: Configure CMake (Linux)
         if: runner.os == 'Linux'
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-               -DOpenCV_DIR="/opt/opencv-4.11.0/lib/cmake/opencv4"
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DOpenCV_DIR="/opt/opencv-4.11.0/lib/cmake/opencv4"
 
       - name: Configure CMake (macOS)
         if: runner.os == 'macOS'
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-               -DOpenCV_DIR="/opt/opencv-4.11.0/lib/cmake/opencv4" \
-               -DOpenMP_ROOT=$(brew --prefix libomp)
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DOpenCV_DIR="/opt/opencv-4.11.0/lib/cmake/opencv4" \
+            -DOpenMP_ROOT="$(brew --prefix libomp)"
 
       - name: Build
         run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
