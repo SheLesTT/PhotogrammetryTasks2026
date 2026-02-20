@@ -6,8 +6,8 @@
 
 #include <libutils/rasserts.h>
 
-
-cv::Mat concatenateImagesLeftRight(const cv::Mat &img0, const cv::Mat &img1) {
+cv::Mat concatenateImagesLeftRight(const cv::Mat& img0, const cv::Mat& img1)
+{
     // это способ гарантировать себе что предположение которое явно в этой функции есть (совпадение типов картинок)
     // однажды не нарушится (по мере изменения кода) и не приведет к непредсказуемым последствиям
     // в отличие от assert() у таких rassert есть три преимущества:
@@ -29,12 +29,6 @@ cv::Mat concatenateImagesLeftRight(const cv::Mat &img0, const cv::Mat &img1) {
     return res;
 }
 
+std::string getTestName() { return ::testing::UnitTest::GetInstance()->current_test_info()->name(); }
 
-std::string getTestName() {
-    return ::testing::UnitTest::GetInstance()->current_test_info()->name();
-}
-
-
-std::string getTestSuiteName() {
-    return ::testing::UnitTest::GetInstance()->current_test_info()->test_suite_name();
-}
+std::string getTestSuiteName() { return ::testing::UnitTest::GetInstance()->current_test_info()->test_suite_name(); }

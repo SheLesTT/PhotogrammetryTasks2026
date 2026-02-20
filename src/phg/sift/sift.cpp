@@ -2,10 +2,10 @@
 #include "libutils/rasserts.h"
 
 #include <iostream>
+#include <numeric>
+#include <opencv2/features2d.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/features2d.hpp>
-#include <numeric>
 
 // Ссылки:
 // [lowe04] - Distinctive Image Features from Scale-Invariant Keypoints, David G. Lowe, 2004
@@ -18,51 +18,49 @@
 
 namespace {
 
-
-    cv::Mat upsample2x(const cv::Mat &src)
-    {
-        cv::Mat dst;
-        cv::resize(src, dst, cv::Size(src.cols * 2, src.rows * 2), 0, 0, cv::INTER_LINEAR);
-        return dst;
-    }
-
-    cv::Mat downsample2x(const cv::Mat &src)
-    {
-        int dstW = src.cols / 2;
-        int dstH = src.rows / 2;
-        cv::Mat dst(dstH, dstW, src.type());
-        const int ch = src.channels();
-
-        for (int y = 0; y < dstH; y++) {
-            const float *srcRow = src.ptr<float>(y * 2);
-            float *dstRow = dst.ptr<float>(y);
-            for (int x = 0; x < dstW; x++) {
-                std::copy(srcRow + x * 2 * ch, srcRow + x * 2 * ch + ch, dstRow + x * ch);
-            }
-        }
-        return dst;
-    }
-
-    [[maybe_unused]] cv::Mat downsample2x_avg(const cv::Mat &src)
-    {
-        int dstW = src.cols / 2;
-        int dstH = src.rows / 2;
-        cv::Mat dst(dstH, dstW, src.type());
-
-        for (int y = 0; y < dstH; y++) {
-            const float *r0 = src.ptr<float>(y * 2);
-            const float *r1 = src.ptr<float>(y * 2 + 1);
-            float *dstRow = dst.ptr<float>(y);
-            for (int x = 0; x < dstW; x++) {
-                dstRow[x] = (r0[x * 2] + r0[x * 2 + 1] +
-                             r1[x * 2] + r1[x * 2 + 1]) * 0.25f;
-            }
-        }
-        return dst;
-    }
+cv::Mat upsample2x(const cv::Mat& src)
+{
+    cv::Mat dst;
+    cv::resize(src, dst, cv::Size(src.cols * 2, src.rows * 2), 0, 0, cv::INTER_LINEAR);
+    return dst;
 }
 
-cv::Mat phg::toGray32F(const cv::Mat &img)
+cv::Mat downsample2x(const cv::Mat& src)
+{
+    int dstW = src.cols / 2;
+    int dstH = src.rows / 2;
+    cv::Mat dst(dstH, dstW, src.type());
+    const int ch = src.channels();
+
+    for (int y = 0; y < dstH; y++) {
+        const float* srcRow = src.ptr<float>(y * 2);
+        float* dstRow = dst.ptr<float>(y);
+        for (int x = 0; x < dstW; x++) {
+            std::copy(srcRow + x * 2 * ch, srcRow + x * 2 * ch + ch, dstRow + x * ch);
+        }
+    }
+    return dst;
+}
+
+[[maybe_unused]] cv::Mat downsample2x_avg(const cv::Mat& src)
+{
+    int dstW = src.cols / 2;
+    int dstH = src.rows / 2;
+    cv::Mat dst(dstH, dstW, src.type());
+
+    for (int y = 0; y < dstH; y++) {
+        const float* r0 = src.ptr<float>(y * 2);
+        const float* r1 = src.ptr<float>(y * 2 + 1);
+        float* dstRow = dst.ptr<float>(y);
+        for (int x = 0; x < dstW; x++) {
+            dstRow[x] = (r0[x * 2] + r0[x * 2 + 1] + r1[x * 2] + r1[x * 2 + 1]) * 0.25f;
+        }
+    }
+    return dst;
+}
+}
+
+cv::Mat phg::toGray32F(const cv::Mat& img)
 {
     cv::Mat gray;
     if (img.channels() == 3) {
@@ -78,7 +76,7 @@ cv::Mat phg::toGray32F(const cv::Mat &img)
     return gray_float;
 }
 
-std::vector<phg::SIFT::Octave> phg::buildOctaves(const cv::Mat &img, const phg::SIFTParams &p, int verbose_level)
+std::vector<phg::SIFT::Octave> phg::buildOctaves(const cv::Mat& img, const phg::SIFTParams& p, int verbose_level)
 {
     const int s = p.n_octave_layers;
     const double sigma0 = p.sigma;
@@ -92,7 +90,7 @@ std::vector<phg::SIFT::Octave> phg::buildOctaves(const cv::Mat &img, const phg::
     const double sigma_nominal = p.upscale_first ? 1.0 /*2x от неапскейленного*/ : 0.5;
     const int n_layers = s + 3; // нужно +2 слоя для того чтобы крайних было по соседу для поиска максимума в scale space, и еще +1 слой, чтобы получить s DoG слоев (DoG = разность двух)
 
-    int n_octaves = std::max(1, (int) std::round(std::log2(std::min(img.cols, img.rows))) - 3); // не даунскейлим дальше размера картинки в 16 пикселей, там уже не имеет смысла что-то детектировать
+    int n_octaves = std::max(1, (int)std::round(std::log2(std::min(img.cols, img.rows))) - 3); // не даунскейлим дальше размера картинки в 16 пикселей, там уже не имеет смысла что-то детектировать
 
     cv::Mat base;
     double sigma_base = std::sqrt(sigma0 * sigma0 - sigma_nominal * sigma_nominal); // можно использовать дальше как идею для инкрементального блюра слоев
@@ -101,7 +99,7 @@ std::vector<phg::SIFT::Octave> phg::buildOctaves(const cv::Mat &img, const phg::
     std::vector<phg::SIFT::Octave> octaves(n_octaves);
 
     for (int o = 0; o < n_octaves; o++) {
-        phg::SIFT::Octave &oct = octaves[o];
+        phg::SIFT::Octave& oct = octaves[o];
         oct.layers.resize(n_layers);
 
         oct.layers[0] = base.clone();
@@ -110,33 +108,34 @@ std::vector<phg::SIFT::Octave> phg::buildOctaves(const cv::Mat &img, const phg::
         //  можно подумать, как сделать эффективнее - для построения n+1 слоя доблюревать уже поблюренный n-ый слой, так чтобы в итоге получилась такая же сигма
         //  это будет немного быстрее, тк нужно более маленькое ядро свертки на каждый шаг
         for (int i = 1; i < n_layers; i++) {
-//            TODO double sigma_layer = sigma0 * корень из двух нужной степени, чтобы при i==s получали удвоение базового блюра;
-//            // вычтем sigma0 чтобы размыть ровно до нужной суммарной сигмы
-//            TODO sigma_layer = ... (вычитаем как в sigma base);
-//            cv::GaussianBlur(oct.layers[0], oct.layers[i], cv::Size(), sigma_layer, sigma_layer);
+            //            TODO double sigma_layer = sigma0 * корень из двух нужной степени, чтобы при i==s получали удвоение базового блюра;
+            //            // вычтем sigma0 чтобы размыть ровно до нужной суммарной сигмы
+            //            TODO sigma_layer = ... (вычитаем как в sigma base);
+            //            cv::GaussianBlur(oct.layers[0], oct.layers[i], cv::Size(), sigma_layer, sigma_layer);
         }
 
         // подготавливаем базовый слой для следующей октавы
         if (o + 1 < n_octaves) {
             // используется в opencv, формула для пересчета ключевых точек: pt_upscaled = 2^o * pt_downscaled
-//            TODO cv::resize(даунскейлим текущий слой в два раза, без интерполяции, просто сабсепмлинг);
+            //            TODO cv::resize(даунскейлим текущий слой в два раза, без интерполяции, просто сабсепмлинг);
 
             // можно использовать и downsample2x_avg(oct.layers[s]), это позволяет потом заапскейлить слои обратно до оригинального разрешения без сдвига
             // но потребуется везде изменить формулу для пересчета ключевых точек: pt_upscaled = (pt_downscaled + 0.5) * 2^o - 0.5
 
-            if (verbose_level) std::cout << "new octave base size: " << base.size().width << std::endl;
+            if (verbose_level)
+                std::cout << "new octave base size: " << base.size().width << std::endl;
         }
     }
 
     return octaves;
 }
 
-std::vector<phg::SIFT::Octave> phg::buildDoG(const std::vector<phg::SIFT::Octave> &octaves, const phg::SIFTParams &p, int verbose_level)
+std::vector<phg::SIFT::Octave> phg::buildDoG(const std::vector<phg::SIFT::Octave>& octaves, const phg::SIFTParams& p, int verbose_level)
 {
     std::vector<phg::SIFT::Octave> dog(octaves.size());
 
     for (size_t o = 0; o < octaves.size(); o++) {
-        const phg::SIFT::Octave &octave = octaves[o];
+        const phg::SIFT::Octave& octave = octaves[o];
         dog[o].layers.resize(octave.layers.size() - 1);
 
         // TODO каждый слой дога это разница n+1 и n-й гауссианы
@@ -145,7 +144,7 @@ std::vector<phg::SIFT::Octave> phg::buildDoG(const std::vector<phg::SIFT::Octave
     return dog;
 }
 
-std::vector<cv::KeyPoint> phg::findScaleSpaceExtrema(const std::vector<phg::SIFT::Octave> &dog, const phg::SIFTParams &params, int verbose_level)
+std::vector<cv::KeyPoint> phg::findScaleSpaceExtrema(const std::vector<phg::SIFT::Octave>& dog, const phg::SIFTParams& params, int verbose_level)
 {
     const int s = params.n_octave_layers;
     const double sigma0 = params.sigma;
@@ -153,7 +152,7 @@ std::vector<cv::KeyPoint> phg::findScaleSpaceExtrema(const std::vector<phg::SIFT
     const double edge_threshold = params.edge_threshold;
 
     // чем больше слоев в октаве, тем меньше разница между ними -> компенсируем порог
-    const float thresh = (float) (contrast_threshold / s);
+    const float thresh = (float)(contrast_threshold / s);
 
     const int border = 5;
 
@@ -163,33 +162,33 @@ std::vector<cv::KeyPoint> phg::findScaleSpaceExtrema(const std::vector<phg::SIFT
 
     std::vector<cv::KeyPoint> keypoints;
 
-    for (int o = 0; o < (int) dog.size(); o++) {
+    for (int o = 0; o < (int)dog.size(); o++) {
         int real_octave = o + first_octave;
 
-        const std::vector<cv::Mat> &dog_layers = dog[o].layers;
-        const int n_dog_layers = (int) dog_layers.size();
+        const std::vector<cv::Mat>& dog_layers = dog[o].layers;
+        const int n_dog_layers = (int)dog_layers.size();
         rassert(n_dog_layers == s + 2, 2138971238612312);
 
         // итерируемся по внутренним слоям пирамиды, у нас всегда есть предыдущий и следующий сосед
         for (int layer = 1; layer <= s; layer++) {
-            const cv::Mat &dog_curr = dog_layers[layer];
-            const cv::Mat &dog_prev = dog_layers[layer - 1];
-            const cv::Mat &dog_next = dog_layers[layer + 1];
+            const cv::Mat& dog_curr = dog_layers[layer];
+            const cv::Mat& dog_prev = dog_layers[layer - 1];
+            const cv::Mat& dog_next = dog_layers[layer + 1];
 
             int rows = dog_curr.rows, cols = dog_curr.cols;
 
             for (int y = border; y < rows - border; y++) {
-                const float *c  = dog_curr.ptr<float>(y);
-                const float *cp = dog_curr.ptr<float>(y - 1);
-                const float *cn = dog_curr.ptr<float>(y + 1);
+                const float* c = dog_curr.ptr<float>(y);
+                const float* cp = dog_curr.ptr<float>(y - 1);
+                const float* cn = dog_curr.ptr<float>(y + 1);
 
-                const float *p  = dog_prev.ptr<float>(y);
-                const float *pp = dog_prev.ptr<float>(y - 1);
-                const float *pn = dog_prev.ptr<float>(y + 1);
+                const float* p = dog_prev.ptr<float>(y);
+                const float* pp = dog_prev.ptr<float>(y - 1);
+                const float* pn = dog_prev.ptr<float>(y + 1);
 
-                const float *n  = dog_next.ptr<float>(y);
-                const float *np = dog_next.ptr<float>(y - 1);
-                const float *nn = dog_next.ptr<float>(y + 1);
+                const float* n = dog_next.ptr<float>(y);
+                const float* np = dog_next.ptr<float>(y - 1);
+                const float* nn = dog_next.ptr<float>(y + 1);
 
                 for (int x = border; x < cols - border; x++) {
                     float val = c[x];
@@ -202,35 +201,40 @@ std::vector<cv::KeyPoint> phg::findScaleSpaceExtrema(const std::vector<phg::SIFT
 
                     bool is_max = true, is_min = true;
                     auto check = [&](float v) {
-                        if (v >= val) is_max = false;
-                        if (v <= val) is_min = false;
+                        if (v >= val)
+                            is_max = false;
+                        if (v <= val)
+                            is_min = false;
                     };
 
                     // TODO проверить локальный максимум на текущем скейле
 
-                    if (!is_max && !is_min) continue;
+                    if (!is_max && !is_min)
+                        continue;
 
                     // TODO проверить локальный максимум на предыдущем скейле
 
-                    if (!is_max && !is_min) continue;
+                    if (!is_max && !is_min)
+                        continue;
 
                     // TODO проверить локальный максимум на следующем скейле
 
-                    if (!is_max && !is_min) continue;
+                    if (!is_max && !is_min)
+                        continue;
 
                     int xi = x, yi = y, li = layer;
 
                     for (int step = 0; step < max_interp_steps; step++) {
-                        const cv::Mat &cL = dog_layers[li];
-                        const cv::Mat &pL = dog_layers[li - 1];
-                        const cv::Mat &nL = dog_layers[li + 1];
+                        const cv::Mat& cL = dog_layers[li];
+                        const cv::Mat& pL = dog_layers[li - 1];
+                        const cv::Mat& nL = dog_layers[li + 1];
 
                         float resp_center = cL.at<float>(yi, xi);
 
                         // градиент
                         float dx = (cL.at<float>(yi, xi + 1) - cL.at<float>(yi, xi - 1)) * 0.5f;
                         float dy = (cL.at<float>(yi + 1, xi) - cL.at<float>(yi - 1, xi)) * 0.5f;
-                        float ds = (nL.at<float>(yi, xi)     - pL.at<float>(yi, xi))     * 0.5f;
+                        float ds = (nL.at<float>(yi, xi) - pL.at<float>(yi, xi)) * 0.5f;
 
                         // гессиан
                         float dxx, dxy, dyy, dxs, dys, dss;
@@ -242,9 +246,7 @@ std::vector<cv::KeyPoint> phg::findScaleSpaceExtrema(const std::vector<phg::SIFT
 //                        float dxs = TODO;
 //                        float dys = TODO;
 
-                        cv::Matx33f H(dxx, dxy, dxs,
-                                      dxy, dyy, dys,
-                                      dxs, dys, dss);
+                        cv::Matx33f H(dxx, dxy, dxs, dxy, dyy, dys, dxs, dys, dss);
 
                         cv::Vec3f g(dx, dy, ds);
 
@@ -290,7 +292,7 @@ std::vector<cv::KeyPoint> phg::findScaleSpaceExtrema(const std::vector<phg::SIFT
 
                             // скейлим координаты точек обратно до родных размеров картинки
                             // !!! если выбираем при даунскейле другую политику, с усреднением вместо ресемплинга, то надо здесь применять формулу со сдвигами на полпикселя
-                            float scale = (real_octave >= 0) ? (float) (1 << real_octave) : (1.f / (float) (1 << (-real_octave)));
+                            float scale = (real_octave >= 0) ? (float)(1 << real_octave) : (1.f / (float)(1 << (-real_octave)));
                             float real_x = (xi + offset[0]) * scale;
                             float real_y = (yi + offset[1]) * scale;
                             float real_layer = li + offset[2];
@@ -301,7 +303,7 @@ std::vector<cv::KeyPoint> phg::findScaleSpaceExtrema(const std::vector<phg::SIFT
                                 real_layer = layer;
                             }
 
-                            float kp_sigma = (float)(sigma0 * std::pow(2.0, (double) real_layer / s) * scale);
+                            float kp_sigma = (float)(sigma0 * std::pow(2.0, (double)real_layer / s) * scale);
 
                             cv::KeyPoint kp;
                             kp.pt.x = real_x;
@@ -328,15 +330,17 @@ std::vector<cv::KeyPoint> phg::findScaleSpaceExtrema(const std::vector<phg::SIFT
             }
         }
 
-        if (verbose_level) std::cout << "octave " << o << ": " << keypoints.size() << " keypoints so far" << std::endl;
+        if (verbose_level)
+            std::cout << "octave " << o << ": " << keypoints.size() << " keypoints so far" << std::endl;
     }
 
-    if (verbose_level) std::cout << "total keypoints: " << keypoints.size() << std::endl;
+    if (verbose_level)
+        std::cout << "total keypoints: " << keypoints.size() << std::endl;
 
     return keypoints;
 }
 
-std::vector<cv::KeyPoint> phg::computeOrientations(const std::vector<cv::KeyPoint> &kpts, const std::vector<phg::SIFT::Octave> &octaves, const phg::SIFTParams &params, int verbose_level)
+std::vector<cv::KeyPoint> phg::computeOrientations(const std::vector<cv::KeyPoint>& kpts, const std::vector<phg::SIFT::Octave>& octaves, const phg::SIFTParams& params, int verbose_level)
 {
     const int s = params.n_octave_layers;
     const double sigma0 = params.sigma;
@@ -349,24 +353,24 @@ std::vector<cv::KeyPoint> phg::computeOrientations(const std::vector<cv::KeyPoin
 
     const int first_octave = params.upscale_first ? -1 : 0;
 
-    for (const cv::KeyPoint &kp : kpts) {
+    for (const cv::KeyPoint& kp : kpts) {
         int layer = kp.class_id;
         int real_octave = kp.octave;
-        int o = real_octave - first_octave;  // индекс в массиве octaves
+        int o = real_octave - first_octave; // индекс в массиве octaves
 
-        const cv::Mat &img = octaves[o].layers[layer];
+        const cv::Mat& img = octaves[o].layers[layer];
 
-        float scale = (real_octave >= 0) ? (float) (1 << real_octave) : (1.f / (float) (1 << (-real_octave)));
+        float scale = (real_octave >= 0) ? (float)(1 << real_octave) : (1.f / (float)(1 << (-real_octave)));
         float x = kp.pt.x / scale;
         float y = kp.pt.y / scale;
 
         // найдем радиус ключевой точки в координатах ее октавы
-        float kp_sigma_octave = (float) (sigma0 * std::pow(2.0, (double) layer / s));
+        float kp_sigma_octave = (float)(sigma0 * std::pow(2.0, (double)layer / s));
         float sigma_win = 1.5f * kp_sigma_octave; // цитата из lowe: "Each sample added to the histogram is weighted by its gradient magnitude and by a Gaussian-weighted circular window with a σ that is 1.5 times that of the scale of the keypoint."
-        int radius = (int) std::round(3.f * sigma_win);
+        int radius = (int)std::round(3.f * sigma_win);
 
-        int xi = (int) std::round(x);
-        int yi = (int) std::round(y);
+        int xi = (int)std::round(x);
+        int yi = (int)std::round(y);
 
         if (xi - radius <= 0 || xi + radius >= img.cols - 1 || yi - radius <= 0 || yi + radius >= img.rows - 1)
             continue;
@@ -433,9 +437,9 @@ std::vector<cv::KeyPoint> phg::computeOrientations(const std::vector<cv::KeyPoin
 
             // если локальный максимум и респонз больше порога
             if (histogram[i] > histogram[prev] && histogram[i] > histogram[next] && histogram[i] >= peak_ratio * max_val) {
-                float left   = histogram[prev];
+                float left = histogram[prev];
                 float center = histogram[i];
-                float right  = histogram[next];
+                float right = histogram[next];
 
                 //  хотим найти угол дескриптора точнее = зафитить параболу по трем точкам (i-1, left), (i, center), (i+1, right)
                 //  у параболы f(x) = ax^2 + bx + c, экстремум в точке x = offset = -b/(2a)
@@ -464,13 +468,14 @@ std::vector<cv::KeyPoint> phg::computeOrientations(const std::vector<cv::KeyPoin
         }
     }
 
-    if (verbose_level) std::cout << "orientations: " << kpts.size() << " -> " << oriented_kpts.size() << " keypoints" << std::endl;
+    if (verbose_level)
+        std::cout << "orientations: " << kpts.size() << " -> " << oriented_kpts.size() << " keypoints" << std::endl;
 
     return oriented_kpts;
 }
 
 // дескриптор подсчитывается по более широкой окрестности. если она выходит за границы изображения, точка может быть отброшена, в результате чего массив kpts может измениться
-std::pair<cv::Mat, std::vector<cv::KeyPoint>> phg::computeDescriptors(const std::vector<cv::KeyPoint> &kpts, const std::vector<phg::SIFT::Octave> &octaves, const phg::SIFTParams &params, int verbose_level)
+std::pair<cv::Mat, std::vector<cv::KeyPoint>> phg::computeDescriptors(const std::vector<cv::KeyPoint>& kpts, const std::vector<phg::SIFT::Octave>& octaves, const phg::SIFTParams& params, int verbose_level)
 {
     const int s = params.n_octave_layers;
     const double sigma0 = params.sigma;
@@ -478,8 +483,8 @@ std::pair<cv::Mat, std::vector<cv::KeyPoint>> phg::computeDescriptors(const std:
     // будем считать дескриптор внутри патча вокруг ключевой точки
     // структура патча: 4x4 сетка, в каждой клетке гистограмма градиентов на 8 бинов
     const int n_spatial_bins = 4;
-    const int n_orient_bins  = 8;
-    const int n_dims    = n_spatial_bins * n_spatial_bins * n_orient_bins; // 128
+    const int n_orient_bins = 8;
+    const int n_dims = n_spatial_bins * n_spatial_bins * n_orient_bins; // 128
 
     // размер одной клетки патча в сигмах. всего размер контекста для одного дексриптора = n_spatial_bins * spatial_bin_width_sigmas сигм
     const float spatial_bin_width_sigmas = 3.f; // в сигмах
@@ -491,18 +496,18 @@ std::pair<cv::Mat, std::vector<cv::KeyPoint>> phg::computeDescriptors(const std:
 
     const int first_octave = params.upscale_first ? -1 : 0;
 
-    for (const cv::KeyPoint &kp : kpts) {
+    for (const cv::KeyPoint& kp : kpts) {
         int layer = kp.class_id;
         int real_octave = kp.octave;
-        int o = real_octave - first_octave;  // индекс в массиве octaves
+        int o = real_octave - first_octave; // индекс в массиве octaves
 
-        const cv::Mat &img = octaves[o].layers[layer];
+        const cv::Mat& img = octaves[o].layers[layer];
 
-        float scale = (real_octave >= 0) ? (float) (1 << real_octave) : (1.f / (float) (1 << (-real_octave)));
+        float scale = (real_octave >= 0) ? (float)(1 << real_octave) : (1.f / (float)(1 << (-real_octave)));
         float x = kp.pt.x / scale;
         float y = kp.pt.y / scale;
 
-        float kp_sigma_octave = (float) (sigma0 * std::pow(2.0, (double) layer / s));
+        float kp_sigma_octave = (float)(sigma0 * std::pow(2.0, (double)layer / s));
 
         // размер патча в котором считаем дескриптор в пикселях октавы
         float spatial_bin_width = spatial_bin_width_sigmas * kp_sigma_octave;
@@ -511,20 +516,20 @@ std::pair<cv::Mat, std::vector<cv::KeyPoint>> phg::computeDescriptors(const std:
         // * sqrt(2) для того, чтобы можно было посемплировать патч даже повернутый на 45 градусов ромбиком
         // * +1 в скобках чтобы можно было семплировать градиенты (а еще зачем?)
         float half_width = 0.5f * spatial_bin_width * (n_spatial_bins + 1) * std::sqrt(2.f);
-        int radius = (int) std::round(half_width);
+        int radius = (int)std::round(half_width);
 
-        int xi = (int) std::round(x);
-        int yi = (int) std::round(y);
+        int xi = (int)std::round(x);
+        int yi = (int)std::round(y);
 
         if (xi - radius <= 0 || xi + radius >= img.cols - 1 || yi - radius <= 0 || yi + radius >= img.rows - 1)
             continue;
 
-        float kp_angle_rad = kp.angle * (float) CV_PI / 180.f;
+        float kp_angle_rad = kp.angle * (float)CV_PI / 180.f;
         float cos_a = std::cos(kp_angle_rad);
         float sin_a = std::sin(kp_angle_rad);
 
         // для гауссового взвешивания: затухающий вклад градиентов с краев картинки
-        float sigma_desc = (float) n_spatial_bins * 0.5f;
+        float sigma_desc = (float)n_spatial_bins * 0.5f;
 
         std::vector<float> desc(n_dims, 0.f);
 
@@ -534,7 +539,7 @@ std::pair<cv::Mat, std::vector<cv::KeyPoint>> phg::computeDescriptors(const std:
                 int px = xi + dx;
                 int py = yi + dy;
 
-                float rot_x = ( cos_a * dx + sin_a * dy) / spatial_bin_width;
+                float rot_x = (cos_a * dx + sin_a * dy) / spatial_bin_width;
                 float rot_y = (-sin_a * dx + cos_a * dy) / spatial_bin_width;
 
                 // подсчет пространственного бина
@@ -546,24 +551,27 @@ std::pair<cv::Mat, std::vector<cv::KeyPoint>> phg::computeDescriptors(const std:
                 float bin_x = rot_x + n_spatial_bins * 0.5f - 0.5f;
                 float bin_y = rot_y + n_spatial_bins * 0.5f - 0.5f;
 
-                if (bin_x < -1.f || bin_x >= (float) n_spatial_bins || bin_y < -1.f || bin_y >= (float) n_spatial_bins)
+                if (bin_x < -1.f || bin_x >= (float)n_spatial_bins || bin_y < -1.f || bin_y >= (float)n_spatial_bins)
                     continue;
 
                 // градиент (потом все равно будем все нормализовывать, так что можно не нормировать здесь)
                 float gx = img.at<float>(py, px + 1) - img.at<float>(py, px - 1);
                 float gy = img.at<float>(py + 1, px) - img.at<float>(py - 1, px);
 
-                float mag   = std::sqrt(gx * gx + gy * gy);
+                float mag = std::sqrt(gx * gx + gy * gy);
                 float angle = std::atan2(gy, gx);
 
                 // инвариантность к повороту: повернем направление градиента на угол ключевой точки
                 float angle_invariant = angle - kp_angle_rad;
-                while (angle_invariant < 0.f) angle_invariant += (float) CV_2PI;
-                while (angle_invariant >= (float) CV_2PI) angle_invariant -= (float) CV_2PI;
+                while (angle_invariant < 0.f)
+                    angle_invariant += (float)CV_2PI;
+                while (angle_invariant >= (float)CV_2PI)
+                    angle_invariant -= (float)CV_2PI;
 
                 // подсчет бина в гистограммке градиентов внутри пространственного бина
                 float bin_o = angle_invariant * n_orient_bins / CV_2PI;
-                if (bin_o >= n_orient_bins) bin_o -= n_orient_bins;
+                if (bin_o >= n_orient_bins)
+                    bin_o -= n_orient_bins;
 
                 // семплы вблизи края патча взвешиваем с меньшим весом
 //                float weight = std::exp(-(TODO) / (2.f * sigma_desc * sigma_desc));
@@ -575,9 +583,9 @@ std::pair<cv::Mat, std::vector<cv::KeyPoint>> phg::computeDescriptors(const std:
                 if (params.enable_descriptor_bin_interpolation) {
                     // размажем вклад weighted_mag по пространственным бинам и по бинам гистограммок трилинейной интерполяцией
 
-                    int ix0 = (int) std::floor(bin_x);
-                    int iy0 = (int) std::floor(bin_y);
-                    int io0 = (int) std::floor(bin_o);
+                    int ix0 = (int)std::floor(bin_x);
+                    int iy0 = (int)std::floor(bin_y);
+                    int io0 = (int)std::floor(bin_o);
 
                     float fx = bin_x - ix0;
                     float fy = bin_y - iy0;
@@ -585,17 +593,20 @@ std::pair<cv::Mat, std::vector<cv::KeyPoint>> phg::computeDescriptors(const std:
 
                     for (int diy = 0; diy <= 1; diy++) {
                         int iy = iy0 + diy;
-                        if (iy < 0 || iy >= n_spatial_bins) continue;
+                        if (iy < 0 || iy >= n_spatial_bins)
+                            continue;
                         float wy = (diy == 0) ? (1.f - fy) : fy;
 
                         for (int dix = 0; dix <= 1; dix++) {
                             int ix = ix0 + dix;
-                            if (ix < 0 || ix >= n_spatial_bins) continue;
+                            if (ix < 0 || ix >= n_spatial_bins)
+                                continue;
                             float wx = (dix == 0) ? (1.f - fx) : fx;
 
                             for (int dio = 0; dio <= 1; dio++) {
                                 int io = (io0 + dio) % n_orient_bins;
-                                if (io < 0) io += n_orient_bins;
+                                if (io < 0)
+                                    io += n_orient_bins;
                                 float wo = (dio == 0) ? (1.f - fo) : fo;
 
 //                                int idx = TODO;
@@ -604,9 +615,9 @@ std::pair<cv::Mat, std::vector<cv::KeyPoint>> phg::computeDescriptors(const std:
                         }
                     }
                 } else {
-                    int ix_nearest = (int) std::round(bin_x);
-                    int iy_nearest = (int) std::round(bin_y);
-                    int io_nearest = (int) std::round(bin_o) % n_orient_bins;
+                    int ix_nearest = (int)std::round(bin_x);
+                    int iy_nearest = (int)std::round(bin_y);
+                    int io_nearest = (int)std::round(bin_o) % n_orient_bins;
 
                     if (ix_nearest >= 0 && ix_nearest < n_spatial_bins && iy_nearest >= 0 && iy_nearest < n_spatial_bins) {
                         // TODO uncomment
@@ -619,18 +630,23 @@ std::pair<cv::Mat, std::vector<cv::KeyPoint>> phg::computeDescriptors(const std:
 
         // нормализуем дескриптор до единичной l2 длины
         float norm = 0.f;
-        for (float v : desc) norm += v * v;
+        for (float v : desc)
+            norm += v * v;
         norm = std::sqrt(norm) + 1e-7f;
-        for (float &v : desc) v /= norm;
+        for (float& v : desc)
+            v /= norm;
 
         // грохнем слишком большие градиенты и ренормализуем
         // таким образом один выброс не потянет за собой весь дескриптор и в будущем расстояние с похожим соседом не вырастет сильно
-        for (float &v : desc) v = std::min(v, mag_cap);
+        for (float& v : desc)
+            v = std::min(v, mag_cap);
 
         norm = 0.f;
-        for (float v : desc) norm += v * v;
+        for (float v : desc)
+            norm += v * v;
         norm = std::sqrt(norm) + 1e-7f;
-        for (float &v : desc) v /= norm;
+        for (float& v : desc)
+            v /= norm;
 
         if (descriptors.empty()) {
             descriptors.create(0, n_dims, CV_32F);
@@ -641,14 +657,15 @@ std::pair<cv::Mat, std::vector<cv::KeyPoint>> phg::computeDescriptors(const std:
         valid_kpts.push_back(kp);
     }
 
-    if (verbose_level) std::cout << "descriptors: " << kpts.size() << " -> " << valid_kpts.size() << " keypoints (some discarded due to border)" << std::endl;
+    if (verbose_level)
+        std::cout << "descriptors: " << kpts.size() << " -> " << valid_kpts.size() << " keypoints (some discarded due to border)" << std::endl;
 
-    return {descriptors, valid_kpts};
+    return { descriptors, valid_kpts };
 }
 
-std::vector<cv::KeyPoint> phg::selectTopKeypoints(const std::vector<cv::KeyPoint> &kpts, const phg::SIFTParams &params, int verbose_level)
+std::vector<cv::KeyPoint> phg::selectTopKeypoints(const std::vector<cv::KeyPoint>& kpts, const phg::SIFTParams& params, int verbose_level)
 {
-    if (params.nfeatures <= 0 || (int) kpts.size() <= params.nfeatures) {
+    if (params.nfeatures <= 0 || (int)kpts.size() <= params.nfeatures) {
         return kpts;
     }
 
@@ -665,12 +682,13 @@ std::vector<cv::KeyPoint> phg::selectTopKeypoints(const std::vector<cv::KeyPoint
         sel_kpts[i] = kpts[idx[i]];
     }
 
-    if (verbose_level) std::cout << "retained top " << nfeatures << " keypoints by response" << std::endl;
+    if (verbose_level)
+        std::cout << "retained top " << nfeatures << " keypoints by response" << std::endl;
 
     return sel_kpts;
 }
 
-void phg::SIFT::detectAndCompute(const cv::Mat &img, const cv::Mat &mask, std::vector<cv::KeyPoint> &kpts, cv::Mat &desc) const
+void phg::SIFT::detectAndCompute(const cv::Mat& img, const cv::Mat& mask, std::vector<cv::KeyPoint>& kpts, cv::Mat& desc) const
 {
     rassert(mask.empty(), 911738571854310); // not implemented, parameter added to match interface with opencv sift implementation
 
@@ -682,7 +700,8 @@ void phg::SIFT::detectAndCompute(const cv::Mat &img, const cv::Mat &mask, std::v
     if (p.upscale_first) {
         auto prev_size = gray.size();
         gray = upsample2x(gray);
-        if (verbose_level) std::cout << "upscaled image from " << prev_size.width << "x" << prev_size.height << " to " << gray.cols << "x" << gray.rows << std::endl;
+        if (verbose_level)
+            std::cout << "upscaled image from " << prev_size.width << "x" << prev_size.height << " to " << gray.cols << "x" << gray.rows << std::endl;
         saveImg("01b_gray_upscaled.png", gray);
     }
 
@@ -715,7 +734,7 @@ void phg::SIFT::detectAndCompute(const cv::Mat &img, const cv::Mat &mask, std::v
     //   как подкрутить алгоритм, чтобы всегда выдавать ровно запрошенное количество точек (когда это в принципе возможно) но не сильно просесть в производительности?
 }
 
-void phg::SIFT::saveImg(const std::string &name, const cv::Mat &img) const
+void phg::SIFT::saveImg(const std::string& name, const cv::Mat& img) const
 {
     if (verbose_level < 2 || debug_folder.empty()) {
         return;
@@ -730,7 +749,7 @@ void phg::SIFT::saveImg(const std::string &name, const cv::Mat &img) const
     cv::imwrite(debug_folder + name, out);
 }
 
-void phg::SIFT::savePyramid(const std::string &name, const std::vector<Octave> &pyramid, bool normalize) const
+void phg::SIFT::savePyramid(const std::string& name, const std::vector<Octave>& pyramid, bool normalize) const
 {
     if (verbose_level < 2 || debug_folder.empty()) {
         return;
@@ -741,7 +760,7 @@ void phg::SIFT::savePyramid(const std::string &name, const std::vector<Octave> &
     for (size_t o = 0; o < pyramid.size(); ++o) {
         std::cout << "saving octave " << o << std::endl;
 
-        const Octave &octave = pyramid[o];
+        const Octave& octave = pyramid[o];
 
         for (size_t i = 0; i < octave.layers.size(); ++i) {
             cv::Mat layer = octave.layers[i].clone();

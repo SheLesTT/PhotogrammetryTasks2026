@@ -10,9 +10,9 @@ set(CMAKE_CXX_STANDARD 17)
 find_package(OpenMP)
 if (OpenMP_CXX_FOUND)
     message(STATUS "OpenMP found")
-else()
+else ()
     message(FATAL_ERROR "OpenMP not found! You need OpenMP for speedup on multicore CPUs!")
-endif()
+endif ()
 
 find_package(OpenCV 4.11.0 REQUIRED)
 # в целом "как выполнить сборку OpenCV и проекта" можно узнать посмотрев на GitHub CI,
@@ -37,13 +37,13 @@ find_package(OpenCV 4.11.0 REQUIRED)
 set(SOURCES
         src/phg/sift/sift.cpp
         src/phg/sift/sift.h
-        )
+)
 
 set(LIBRARIES
         libutils
         ${OpenCV_LIBS}
         OpenMP::OpenMP_CXX
-        )
+)
 
 add_library(${PROJECT_NAME} ${SOURCES})
 target_link_libraries(${PROJECT_NAME} ${LIBRARIES})
@@ -52,12 +52,12 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/src)
 set(TEST_SOURCES
         tests/utils/test_utils.cpp
         tests/utils/test_utils.h
-        )
+)
 
 set(TEST_LIBRARIES
         gtest
         gtest_main
-        )
+)
 
 add_executable(test_sift tests/test_sift.cpp ${TEST_SOURCES})
 target_link_libraries(test_sift ${PROJECT_NAME} ${LIBRARIES} ${TEST_LIBRARIES})
