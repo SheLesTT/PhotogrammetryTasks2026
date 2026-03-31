@@ -26,8 +26,8 @@ cmake -S . -B _build `
     -DUSE_CUDA=OFF
 if ($LASTEXITCODE -ne 0) { throw "cmake configure failed" }
 
-cmake --build build --config Release --parallel
+cmake --build _build --config Release --parallel
 if ($LASTEXITCODE -ne 0) { throw "cmake build failed" }
 
-cmake --install build --config Release
+cmake --install _build --config Release
 if ($LASTEXITCODE -ne 0) { throw "cmake install failed" }
