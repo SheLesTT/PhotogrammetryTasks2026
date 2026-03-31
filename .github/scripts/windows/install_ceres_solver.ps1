@@ -31,3 +31,4 @@ if ($LASTEXITCODE -ne 0) { throw "cmake build failed" }
 
 cmake --install _build --config Release
 if ($LASTEXITCODE -ne 0) { throw "cmake install failed" }
+cd $env:GITHUB_WORKSPACE
